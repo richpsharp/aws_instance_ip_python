@@ -1,5 +1,6 @@
 """Get list of IP addresses from AWS instances that match a tag."""
 import argparse
+import json
 import subprocess
 
 if __name__ == '__main__':
@@ -8,13 +9,12 @@ if __name__ == '__main__':
     parser.add_argument('tag_id', help='AWS tag value')
     args = parser.parse_args()
 
-    aws2_ec2_instance_ip_query = (
-        'aws2 ec2 describe-instances | '
-        'jq \'.Reservations[] | .Instances[] | '
-        '(.Tags | { "iname": ( map ( select(.Value | '
-        'contains("%s")))[] | .Value ) } ) + '
-        '( { "ip": ( .NetworkInterfaces[].PrivateIpAddress) } )\' |'
-        ' jq -s . | grep ip | gawk \'/\"(.*)\"/{print $2}\' | tr -d \"' % (
-            args.tag_id))
-    out = subprocess.check_output(aws2_ec2_instance_ip_query)
-    print(out)
+    out = subprocess.check_output('aws2 ec2 describe-instances')
+    out_json = json.loads(out)
+    for reservation in out_json['Reservations']:
+        for instance in reservation['Instances']:
+            for tag in instance['Tags']:
+                if tag['Value'] == args.tag_id:
+                    print(instance['InstanceId'])
+                    print(instance['PrivateIpAddress'])
+                    break
